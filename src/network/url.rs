@@ -16,10 +16,7 @@ impl URL {
     }
 
     fn parse_scheme(url: &String) -> Scheme {
-        let scheme_string: &str = match url.split("://").next() {
-            Some(x) => x,
-            None => ""
-        };
+        let scheme_string: &str = url.split("://").next().unwrap_or_else(|| "");
 
         match scheme_string {
             "http" => Scheme::HTTP,
