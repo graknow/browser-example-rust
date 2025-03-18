@@ -1,16 +1,15 @@
-use crate::network::url::URL;
+use std::net::TcpStream;
+
+use crate::network::{http::{self, request}, url::URL};
 
 pub fn init()
 {
-    println!("a");
-    let a = String::from("https://www.google.com");
-    let b = String::from("http://www.google.com");
+    let a = String::from("http://www.google.com:80/");
+    let b = String::from("http://www.google.com/search?term=test");
     let c = String::from("twitch.tv");
 
     let url = URL::init(&a);
-    println!("{:?}", url.scheme);
-    let url = URL::init(&b);
-    println!("{:?}", url.scheme);
-    let url = URL::init(&c);
-    println!("{:?}", url.scheme);
+    println!("Scheme: {:?}, Host: {}, Path: {}, Port: {}", url.scheme, url.host, url.path, url.port);
+
+    request(url, http::Method::GET);
 }
