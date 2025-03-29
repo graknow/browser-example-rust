@@ -1,3 +1,10 @@
+use core::fmt;
+use std::{
+    io::{Read, Write},
+    net::{TcpStream, ToSocketAddrs},
+};
+
+use super::response::MAX_RESPONSE_LENGTH;
 
 const HTTP_DEFAULT_PORT: u16 = 80;
 const HTTPS_DEFAULT_PORT: u16 = 443;
@@ -17,10 +24,8 @@ pub struct URL {
 
 impl URL {
     pub fn init(url: &String) -> Self {
-        let (scheme_string, address): (&str, &str) = 
-            url
-            .split_once("://")
-            .unwrap_or_else(|| ("", url));
+        let (scheme_string, address): (&str, &str) =
+            url.split_once("://").unwrap_or_else(|| ("", url));
 
         let scheme: Scheme = match scheme_string {
             "http" => Scheme::HTTP,
@@ -31,7 +36,7 @@ impl URL {
         let host: &str;
         let path: &str;
         let port: u16;
-        
+
         if !address.is_empty() {
             let host_full: &str;
             (host_full, path) = match address.find('/') {
@@ -43,14 +48,16 @@ impl URL {
                 Some(_) => {
                     let (h, p) = host_full.split_once(':').unwrap();
                     (h, p.parse().unwrap())
-                },
-                None => (host_full, match scheme {
-                    Scheme::HTTP => HTTP_DEFAULT_PORT,
-                    Scheme::HTTPS => HTTPS_DEFAULT_PORT,
-                }),
+                }
+                None => (
+                    host_full,
+                    match scheme {
+                        Scheme::HTTP => HTTP_DEFAULT_PORT,
+                        Scheme::HTTPS => HTTPS_DEFAULT_PORT,
+                    },
+                ),
             }
-        }
-        else {
+        } else {
             host = "";
             path = "";
             port = HTTP_DEFAULT_PORT;
@@ -66,5 +73,23 @@ impl URL {
             port: port,
             path: String::from(path),
         }
+    }
+
+    pub fn request(&self) -> [u8; MAX_RESPONSE_LENGTH] {
+        let mut request: String = String::from("");
+
+        request += &format!("{} {} HTTP/1.0\r\n", "GET", self.path);
+        request += &format!("Host: {}\r\n", self.host);
+        request += "\r\n";
+
+        let mut stream: TcpStream = TcpStream::connect(format!("{}:{}", self.host, self.port))
+            .expect("Failed to create connection.");
+        let _ = stream.write(&request.as_bytes());
+
+        let mut rx_bytes = [0u8; MAX_RESPONSE_LENGTH];
+        // Read from the current data in the TcpStream
+        let _ = stream.read(&mut rx_bytes);
+
+        rx_bytes
     }
 }
