@@ -1,20 +1,12 @@
-use crate::network::{
-    url::URL
-};
-
+use crate::display::html;
+use crate::network::{http, url::URL};
 pub fn init() {
     let a = String::from("http://example.org");
-    let b = String::from("http://www.google.com/search?term=test");
-    let c = String::from("twitch.tv");
+    let b = String::from("http://www.google.com");
+    let c = String::from("http://browser.engineering/examples/example1-simple.html");
 
-    let url = URL::init(&a);
-    println!(
-        "Scheme: {:?}, Host: {}, Path: {}, Port: {}",
-        url.scheme, url.host, url.path, url.port
-    );
+    let url = URL::new(&c);
 
-    let mut response: Response = Response { data: String::from("") };
-
-    url.request();
-    eprintln!("{}", response.data);
+    let response = http::request(url);
+    html::show(response.body.as_str());
 }
