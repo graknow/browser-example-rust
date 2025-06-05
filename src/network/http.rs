@@ -1,4 +1,4 @@
-use super::url::URL;
+use super::url::Url;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -21,14 +21,14 @@ pub struct HttpResponse {
     pub body: String,
 }
 
-pub fn request(url: URL) -> HttpResponse {
+pub fn request(url: Url) -> HttpResponse {
     let mut request: String = String::from("");
 
-    request += &format!("{} {} HTTP/1.0\r\n", "GET", url.path);
-    request += &format!("Host: {}\r\n", url.host);
+    request += &format!("{} {} HTTP/1.0\r\n", "GET", url.path());
+    request += &format!("Host: {}\r\n", url.host());
     request += "\r\n";
 
-    let mut stream: TcpStream = TcpStream::connect(format!("{}:{}", url.host, url.port))
+    let mut stream: TcpStream = TcpStream::connect(format!("{}:{}", url.host(), url.port().unwrap()))
         .expect("Failed to create connection.");
     let _ = stream.write(&request.as_bytes());
 

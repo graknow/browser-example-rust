@@ -4,4 +4,5 @@ mod network;
 
 fn main() {
     app::init();
+    
 }

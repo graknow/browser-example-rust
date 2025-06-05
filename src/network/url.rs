@@ -1,75 +1,145 @@
-use core::fmt;
-use std::{
-    io::{Read, Write},
-    net::{TcpStream, ToSocketAddrs},
-};
-
 const HTTP_DEFAULT_PORT: u16 = 80;
 const HTTPS_DEFAULT_PORT: u16 = 443;
 
 #[derive(Debug)]
-pub enum Scheme {
+pub enum UrlError {
+    MissingScheme,
+    InvalidScheme,
+    MissingHost,
+    InvalidPort,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum UrlScheme {
     HTTP,
     HTTPS,
+    FILE,
 }
 
-pub struct URL {
-    pub scheme: Scheme,
-    pub host: String,
-    pub port: u16,
-    pub path: String,
+const VALID_SCHEMES: [&str; 3] = [
+    "http", 
+    "https", 
+    "file"
+];
+
+pub struct Url {
+    // A url will be broken down as follows.
+    // scheme :// host [: port]? / path [? query]?
+    // This is a simpler breakdown than other Url implementations since
+    // as this application is just for learning.
+    full: String,
+    scheme_end: usize,
+    host_start: usize,
+    host_end: usize,
+    port_end: Option<usize>,
+    path_start: usize,
+    query_start: Option<usize>
 }
 
-impl URL {
-    pub fn new(url: &String) -> Self {
-        let (scheme_string, address): (&str, &str) =
-            url.split_once("://").unwrap_or_else(|| ("", url));
-
-        let scheme: Scheme = match scheme_string {
-            "http" => Scheme::HTTP,
-            "https" => Scheme::HTTPS,
-            _ => Scheme::HTTPS,
+impl Url {
+    /// Create a URL struct instance.
+    pub fn new(url: &str) -> Result<Url, UrlError> {
+        let mut result = Url {
+            full: String::from(url),
+            scheme_end: 0,
+            host_start: 0,
+            host_end: 0,
+            port_end: None,
+            path_start: 0,
+            query_start: None,
         };
 
-        let host: &str;
-        let path: &str;
-        let port: u16;
+        result.scheme_end = match result.full.find("://") {
+            Some(x) => x,
+            None => return Err(UrlError::MissingScheme),
+        };
 
-        if !address.is_empty() {
-            let host_full: &str;
-            (host_full, path) = match address.find('/') {
-                Some(x) => address.split_at_checked(x).unwrap_or_else(|| ("", "/")),
-                None => (address, "/"),
+        assert!(result.scheme_end > 0);
+        
+        if !VALID_SCHEMES.contains(&&result.full[..result.scheme_end]) {
+            return Err(UrlError::InvalidScheme);
+        }
+
+        result.host_start = result.scheme_end + 3;
+
+        if let Some(full_host_end) = result.full[result.host_start..].find("/") {
+            result.path_start = full_host_end + result.host_start;
+            match result.full[result.host_start..full_host_end].find(":") {
+                Some(x) => {
+                    result.port_end = Some(full_host_end + result.host_start);
+                    result.host_end = x + result.host_start;
+                },
+                None => result.host_end = full_host_end + result.host_start,
             };
-
-            (host, port) = match host_full.find(':') {
-                Some(_) => {
-                    let (h, p) = host_full.split_once(':').unwrap();
-                    (h, p.parse().unwrap())
-                }
-                None => (
-                    host_full,
-                    match scheme {
-                        Scheme::HTTP => HTTP_DEFAULT_PORT,
-                        Scheme::HTTPS => HTTPS_DEFAULT_PORT,
-                    },
-                ),
-            }
-        } else {
-            host = "";
-            path = "";
-            port = HTTP_DEFAULT_PORT;
+        }
+        else {
+            return Err(UrlError::MissingHost);
         }
 
-        Self {
-            scheme: match scheme_string {
-                "http" => Scheme::HTTP,
-                "https" => Scheme::HTTPS,
-                _ => Scheme::HTTPS,
-            },
-            host: String::from(host),
-            port: port,
-            path: String::from(path),
+
+        assert!(result.host_end > 0);
+        assert!(result.scheme_end < result.host_end);
+
+        result.query_start = result.full.find("?");
+
+        Ok(result)
+    }
+
+    pub fn full(&self) -> &str {
+        &self.full
+    }
+
+    pub fn scheme(&self) -> UrlScheme {
+        match &self.full[0..self.scheme_end] {
+            "http" => UrlScheme::HTTP,
+            "https" => UrlScheme::HTTPS,
+            "file" => UrlScheme::FILE,
+            _ => panic!("Invalid scheme for {}", self.full),
         }
+    }
+
+    pub fn scheme_str(&self) -> &str {
+        &self.full[0..self.scheme_end]
+    }
+
+    pub fn host(&self) -> &str {
+        &self.full[self.host_start..self.host_end]
+    }
+
+    pub fn port(&self) -> Option<&str> {
+        match self.port_end {
+            Some(x) => Some(&self.full[self.host_end..x]),
+            None => None,
+        }
+    }
+
+    pub fn path(&self) -> &str {
+        let path_end = self.query_start.unwrap_or_else(|| self.full.len());
+        &self.full[self.path_start..path_end]
+    }
+
+    pub fn query(&self) -> Option<&str> {
+        match self.query_start {
+            Some(x) => Some(&self.full[x..]),
+            None => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_http() {
+        let url: Url = Url::new("https://www.google.com/search?query=test+query")
+            .expect("String was a valid Url");
+
+        assert_eq!(url.scheme_str(), "https");
+        assert_eq!(url.scheme(), UrlScheme::HTTPS);
+        assert_eq!(url.host(), "www.google.com");
+        assert_eq!(url.port(), None);
+        assert_eq!(url.path(), "/search");
+        assert_eq!(url.query(), Some("?query=test+query"));
     }
 }
